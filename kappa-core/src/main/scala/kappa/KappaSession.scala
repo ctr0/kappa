@@ -27,6 +27,10 @@ class KappaSession(val conf: KappaConf) extends Logging {
     }
   }
 
+  def getOrCreate[T](clazz: Class[T], key: String)(instance: T): T = {
+    getOrCreate(s"${clazz.getCanonicalName}@$key")(instance)
+  }
+
   def checkExistsPath(path: String): Stat = {
     zkClient.checkExists.forPath(path)
   }

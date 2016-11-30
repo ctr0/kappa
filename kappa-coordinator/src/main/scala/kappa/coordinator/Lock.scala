@@ -4,6 +4,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import kappa._
+import kappa.Directive._
 import org.apache.curator.framework.recipes.locks.InterProcessReadWriteLock
 
 import scala.concurrent.Future
@@ -86,8 +87,7 @@ private class Lock (session: KappaSession, basePath: String) extends WriteLock w
 
   //override def assertNotLocked(path: Path) = assertNotLocked(path.value)
 
-  override def assertNotLocked(path: Path) =
-      Directive0(s"assertNotLocked($path)") { session =>
+  override def assertNotLocked(path: Path) = Directive0(s"assertNotLocked($path)") { session =>
     if (session.checkExistsPath(internalDomainPath/path) != null) {
       throw new Exception(s"path ${internalDomainPath/path} is locked")
     }
@@ -100,30 +100,24 @@ private class Lock (session: KappaSession, basePath: String) extends WriteLock w
   }
 
   private[coordinator] def writeLock() = Directive1[WriteLock]("writeLock") { session =>
-    acquireWriteLock() match {
-      case Failure(error) ⇒
-        session.error(error, s"Error acquiring write log on $internalLockPath")
-        throw error
-      case Success(_) ⇒
-        session.debug(s"Write lock acquired on $internalLockPath")
-    }
-    this.asInstanceOf[WriteLock]
-  } complete {
-    Directive0("releaseWriteLock") { session =>
-      releaseWriteLock().recover {
-        case t ⇒
-          session.debug(t, s"Error releasing write lock on $internalLockPath (Ignoring error)")
+      acquireWriteLock() match {
+        case Success(_) ⇒ session.debug(s"Acquired write lock $internalLockPath")
+        case Failure(error) ⇒ throw error
       }
-    }
-  }
+      this.asInstanceOf[WriteLock]
+    } complete {
+      Directive0("releaseWriteLock") { session =>
+        releaseWriteLock().recover {
+          case t ⇒
+            session.debug(t, s"Error releasing write lock on $internalLockPath (Ignoring error)")
+        }
+      }
+    }.asInstanceOf[Directive1[WriteLock]]
 
   private[coordinator] def readLock() = Directive1[ReadLock]("readLock") { session =>
     acquireReadLock() match {
-      case Failure(error) ⇒
-        session.error(error, s"Error acquiring read log on $internalLockPath")
-        throw error
-      case Success(_) ⇒
-        session.debug(s"Read lock acquired on $internalLockPath")
+      case Success(_) ⇒ session.debug(s"Acquired read lock $internalLockPath")
+      case Failure(error) ⇒ throw error
     }
     this.asInstanceOf[ReadLock]
   } complete {
@@ -140,10 +134,10 @@ private class Lock (session: KappaSession, basePath: String) extends WriteLock w
       internalLock.writeLock().acquire(DEFAULT_ACQUIRE_LOCK_TIMEOUT, TimeUnit.MILLISECONDS)
     } match {
       case Success(success) => if (success) Success(()) else Failure {
-          CoordinatorException(getClass, basePath, "Could not acquire write lock")
+          CoordinatorException(getClass, basePath, s"Could not acquire write lock $internalLockPath")
         }
       case Failure(error) ⇒ Failure {
-        CoordinatorException(getClass, basePath, "Could not acquire write lock", error)
+        CoordinatorException(getClass, basePath, s"Could not acquire write lock $internalLockPath", error)
       }
     }
   }
@@ -154,7 +148,7 @@ private class Lock (session: KappaSession, basePath: String) extends WriteLock w
     } match {
       case Success(_) ⇒ Success(())
       case Failure(error) ⇒ Failure {
-        CoordinatorException(getClass, basePath, "Could not release write lock", error)
+        CoordinatorException(getClass, basePath, s"Could not release write lock $internalLockPath", error)
       }
     }
   }
@@ -164,10 +158,10 @@ private class Lock (session: KappaSession, basePath: String) extends WriteLock w
       internalLock.readLock().acquire(DEFAULT_ACQUIRE_LOCK_TIMEOUT, TimeUnit.MILLISECONDS)
     } match {
       case Success(success) => if (success) Success(()) else Failure {
-        CoordinatorException(getClass, basePath, "Could not acquire read lock")
+        CoordinatorException(getClass, basePath, s"Could not acquire read lock $internalLockPath")
       }
       case Failure(error) ⇒ Failure {
-        CoordinatorException(getClass, basePath, "Could not acquire read lock", error)
+        CoordinatorException(getClass, basePath, s"Could not acquire read lock $internalLockPath", error)
       }
     }
   }
@@ -178,7 +172,7 @@ private class Lock (session: KappaSession, basePath: String) extends WriteLock w
     } match {
       case Success(_) ⇒ Success(())
       case Failure(error) ⇒ Failure {
-        CoordinatorException(getClass, basePath, "Could not release read lock", error)
+        CoordinatorException(getClass, basePath, s"Could not release read lock $internalLockPath", error)
       }
     }
   }

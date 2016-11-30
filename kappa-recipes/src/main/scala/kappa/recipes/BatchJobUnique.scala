@@ -8,7 +8,7 @@ import scala.util.Try
 /**
   * Created by j0rd1 on 5/11/16.
   */
-class BatchJobUnique extends Job {
+class BatchJobUnique extends Spec {
 
   override def session: KappaSession = null
   override def domain: Path = "eci/offline"

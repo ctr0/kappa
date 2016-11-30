@@ -8,7 +8,7 @@ import scala.util.Try
 /**
   * Created by j0rd1 on 1/11/16.
   */
-object BatchJob extends Job {
+object BatchJob extends Spec {
 
   def domain = Path("eci")
 

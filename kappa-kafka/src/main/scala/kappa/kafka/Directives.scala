@@ -2,12 +2,11 @@ package kappa.kafka
 
 import java.util.Properties
 
-
 import kafka.admin.{AdminUtils, ConsumerGroupCommand, RackAwareMode}
 import kafka.utils.ZkUtils
+import kappa.Directive._
 import kappa._
-import org.apache.kafka.common.errors.TopicExistsException
-
+import org.apache.kafka.common.errors.{TopicExistsException, UnknownTopicOrPartitionException}
 
 
 /**
@@ -49,9 +48,16 @@ object Directives {
     }
   }
 
-  def deleteKafkaTopic(topic: String) =
-      Directive0(s"deleteKafkaTopic($topic)") { session =>
+  def deleteKafkaTopic(topic: String) = Directive0(s"deleteKafkaTopic($topic)") { session =>
     AdminUtils.deleteTopic(zkUtils(session), topic)
+  }
+
+  def deleteKafkaTopicIfExists(topic: String) = Directive0(s"deleteKafkaTopicIfExists($topic)") { session =>
+    try {
+      AdminUtils.deleteTopic(zkUtils(session), topic)
+    } catch {
+      case e: /* FIXME TopicAlreadyMarkedForDeletionException |*/ UnknownTopicOrPartitionException =>
+    }
   }
 
   def retrieveKafkaOffsets(topic: String) =

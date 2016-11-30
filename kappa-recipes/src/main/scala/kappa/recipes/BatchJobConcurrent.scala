@@ -9,7 +9,7 @@ import scala.util.Try
 /**
   * Created by j0rd1 on 5/11/16.
   */
-class BatchJobConcurrent extends Job {
+class BatchJobConcurrent extends Spec {
 
   override def session: KappaSession = null
   override def domain: Path = "eci/offline/full-index"

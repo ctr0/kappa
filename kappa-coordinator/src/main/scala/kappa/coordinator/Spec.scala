@@ -7,19 +7,14 @@ import scala.collection.mutable
 /**
   * Created by j0rd1 on 2/11/16.
   */
-abstract class Job extends KappaJob {
+abstract class Spec extends KappaJob {
 
+  // FIXME move to session
   private def locks = mutable.Map[Path, Lock]()
 
   private def lock(path: Path): Lock = {
-    locks.synchronized {
-      locks.get(path) match {
-        case Some(lock) ⇒ lock
-        case None ⇒
-          val lock = new Lock(session, path)
-          locks(path) = lock
-          lock
-      }
+    session.getOrCreate(classOf[Lock], path) {
+      new Lock(session, path)
     }
   }
 

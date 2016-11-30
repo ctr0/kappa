@@ -15,7 +15,7 @@ object Directives {
 
   // Responses
 
-  def response(r: String) = Response(r)
+  def response(r: String) = ResponseSuccess(r)
 
   def debug(t: Throwable) = new Directive0("debug", _.debug(t))
 

@@ -2,18 +2,18 @@
 import java.io.StringReader
 import java.nio.ByteBuffer
 import java.util.Properties
+import java.util.function.{Function => JavaFunction}
 
 /**
   * Created by j0rd1 on 4/11/16.
   */
 package object kappa {
 
-  def Directive0(name: String)(f: KappaSession ⇒ Unit): Directive0 = new Directive0(name, f)
-
-  def Directive1[T1](name: String)(f: KappaSession ⇒ T1): Directive1[T1] = new Directive1[T1](name, f)
-
-  def Directive2[T1, T2](name: String)(f: KappaSession ⇒ (T1, T2)): Directive2[T1, T2] = new Directive2[T1, T2](name, f)
-
+  implicit def javaFuncToScalaFunc[T, R](f: JavaFunction[T, R]): T => R = {
+    new Function[T, R] {
+      override def apply(t: T): R = f.apply(t)
+    }
+  }
 
   implicit def path2String(path: Path): String = path.value
 

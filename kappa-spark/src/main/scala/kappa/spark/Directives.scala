@@ -4,6 +4,7 @@ import java.io.File
 
 import kappa.Directives._
 import kappa._
+import kappa.Directive._
 import kappa.spark.rest.v1.RestApiV1
 import org.apache.commons.lang.text.StrSubstitutor
 import org.apache.spark.deploy.Client
@@ -18,8 +19,9 @@ object Directives {
 
   import Conf._
 
-  def submitSparkJob(id: String, resource: String, conf: String) =
-      Directive0(s"submitSparkJob($id)") { session =>
+  def submitSparkJob(id: String, resource: String, conf: String) = Directive0(s"submitSparkJob($id)") { session =>
+
+
     val launcher = new SparkLauncher()
     //.setJavaHome() use system
     //.setSparkHome() use system
@@ -27,7 +29,8 @@ object Directives {
       .setDeployMode(session.conf(`kappa.spark.deploy-mode`))
       .setAppName(id)
       .setAppResource(resource)
-      .setPropertiesFile(conf)
+      if (conf != null)
+        launcher.setPropertiesFile(conf)
     //.setConf() through properties file
     //.setVerbose(true)
     launcher.startApplication() // FIXME listeners
