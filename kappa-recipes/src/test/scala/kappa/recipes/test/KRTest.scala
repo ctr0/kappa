@@ -38,8 +38,6 @@ object KRTest extends Spec {
   }
 
   def main(args: Array[String]): Unit = {
-
-
     val test = krtTest()
     val response = test.apply
 

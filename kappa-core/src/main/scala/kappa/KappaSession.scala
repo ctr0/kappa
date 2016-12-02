@@ -1,7 +1,7 @@
 package kappa
 
 import org.apache.curator.framework.CuratorFrameworkFactory
-import org.apache.curator.retry.ExponentialBackoffRetry
+import org.apache.curator.retry.{ExponentialBackoffRetry, RetryOneTime}
 import org.apache.zookeeper.KeeperException
 import org.apache.zookeeper.data.Stat
 
@@ -88,7 +88,8 @@ class KappaSession(val conf: KappaConf) extends Logging {
   private[kappa] val zkBasePath = "/kappa/instance_name"
 
   private[kappa] val zkClient = {
-    val retryPolicy = new ExponentialBackoffRetry(1000, 3)
+    //val retryPolicy = new ExponentialBackoffRetry(1000, 3)
+    val retryPolicy = new RetryOneTime(100)
     val connStr = conf.zkUrl.replace("zk://", "")
     val curatorBuilder = CuratorFrameworkFactory.builder()
       .connectString(connStr)

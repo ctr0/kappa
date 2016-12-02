@@ -6,21 +6,21 @@ import scala.collection.mutable
 import scala.util.control.NonFatal
 
 
-object Directive {
-  def Directive0(name: String)(f: KappaSession => Unit) = new Directive0(name, f)
-  //def Directive0(name: String)(f: JavaFunction[KappaSession, Void]) = new Directive0(name, f)
-  def Directive1[T](name: String)(f: KappaSession => T) = new Directive1[T](name, f)
-  //def Directive1[T](name: String)(f: JavaFunction[KappaSession,T]) = new Directive1[T](name, f)
-  def Directive2[T1, T2](name: String)(f: KappaSession => (T1, T2)) = new Directive2[T1, T2](name, f)
-  //def Directive2[T1, T2](name: String)(f: JavaFunction[KappaSession, (T1, T2)]) = new Directive2[T1, T2](name, f)
-  def Directive3[T1, T2, T3](name: String)(f: KappaSession => (T1, T2, T3)) = new Directive3[T1, T2, T3](name, f)
-  def Directive4[T1, T2, T3, T4](name: String)(f: KappaSession => (T1, T2, T3, T4)) = new Directive4[T1, T2, T3, T4](name, f)
-  def Directive5[T1, T2, T3, T4, T5](name: String)(f: KappaSession => (T1, T2, T3, T4, T5)) = new Directive5[T1, T2, T3, T4, T5](name, f)
-}
+//object Directive {
+  //def Directive0(name: String)(f: KappaSession => Unit) = new Directive0(name, f)
+  //def Directive0(name: String)(f: JavaFunction[KappaSession, Void]) = new Directive0(name)(f.andThen(_ => Unit))
+  //def Directive1[T](name: String)(f: KappaSession => T) = new Directive1[T](name, f)
+  //def Directive1[T](name: String)(f: JavaFunction[KappaSession,T]) = new Directive1[T](name)(f)
+  //def Directive2[T1, T2](name: String)(f: KappaSession => (T1, T2)) = new Directive2[T1, T2](name, f)
+  //def Directive2[T1, T2](name: String)(f: JavaFunction[KappaSession, (T1, T2)]) = new Directive2[T1, T2](name)(f)
+  //def Directive3[T1, T2, T3](name: String)(f: KappaSession => (T1, T2, T3)) = new Directive3[T1, T2, T3](name, f)
+  //def Directive4[T1, T2, T3, T4](name: String)(f: KappaSession => (T1, T2, T3, T4)) = new Directive4[T1, T2, T3, T4](name, f)
+  //def Directive5[T1, T2, T3, T4, T5](name: String)(f: KappaSession => (T1, T2, T3, T4, T5)) = new Directive5[T1, T2, T3, T4, T5](name, f)
+//}
 
-sealed abstract class Directive protected (val name: String) {
+sealed abstract class Directive protected (val name: String, df: KappaSession => Any) {
 
-  private var directiveComposedFunction: KappaSession => Directive = _
+  private var composedFunction: KappaSession => Directive = df.andThen(_ => ResponseSuccess(name))
   private val failureFunctions = mutable.ListBuffer[Throwable ⇒ Directive]()
   private val completeFunctions = mutable.ListBuffer[Directive]()
 
@@ -39,19 +39,21 @@ sealed abstract class Directive protected (val name: String) {
     this
   }
 
-  protected def compose[T](f: KappaSession => T, s: T => Directive): Directive = {
-    directiveComposedFunction = f.andThen(s)
+  protected def compose[T](s: T => Directive): Directive = {
+    composedFunction = df.andThen(s.asInstanceOf[Any => Directive])
     this
   }
 
-  def apply(implicit session: KappaSession): Response =
-    tryApply(session, "success", directiveComposedFunction, session)
+  final def apply(implicit session: KappaSession): Response = apply(session, "success")
+
+  protected def apply(session: KappaSession, state: String): Response =
+    tryApply(session, state, composedFunction, session)
 
   private def tryApply[T](session: KappaSession, state: String, f: T => Directive, arg: T): Response = {
     try {
       val next = f(arg)
       session.trace(s"Applied $state directive $name")
-      next.apply(session) match {
+      next.apply(session, state) match {
         case success: ResponseSuccess => success
         case failure: ResponseFailure =>
           tryFailure(session, failure.error)
@@ -74,9 +76,7 @@ sealed abstract class Directive protected (val name: String) {
   }
 
   private def tryComplete(session: KappaSession): Unit = {
-    completeFunctions.map { cd =>
-      tryApply[Unit](session, "failure", u => cd, Unit)
-    }
+    completeFunctions.map(_.apply(session, "complete"))
   }
 
 }
@@ -85,51 +85,57 @@ sealed abstract class Directive protected (val name: String) {
 sealed trait Response
 
 
-final case class ResponseSuccess(value: String) extends Directive(s"ResponseSuccess($value)") with Response {
-  override def apply(implicit session: KappaSession): Response = this
+final case class ResponseSuccess(value: String) extends Directive(s"ResponseSuccess($value)", _ => value) with Response {
+  override protected def apply(session: KappaSession, state: String): Response = this
 }
 
 
-final case class ResponseFailure(error: Throwable) extends Directive(s"ResponseFailure($error)") with Response {
-  override def apply(implicit session: KappaSession): Response = this
+final case class ResponseFailure(error: Throwable) extends Directive(s"ResponseFailure($error)", _ => error) with Response {
+  override protected def apply(session: KappaSession, state: String): Response = this
 }
 
 
-final class Directive0 private[kappa] (name: String, f: KappaSession => Any) extends Directive(name) {
-  def apply(s: Directive) = compose(f, (_ => s): Any => Directive)
+final case class Directive0
+    (override val name: String)(private val f: KappaSession => Unit) extends Directive(name, f) {
+  def apply(s: Directive) = compose[Unit](_ => s)
   def success(s: Directive) = apply(s)
 }
 
 
-final class Directive1[T] private[kappa] (name: String, f: KappaSession => T) extends Directive(name) {
-  def apply(s: T ⇒ Directive) = compose(f, s)
+final case class Directive1[T]
+    (override val name: String)(private val f: KappaSession => T) extends Directive(name, f) {
+  def apply(s: T ⇒ Directive) = compose(s)
   //def success(s: T ⇒ Directive) = compose(f, s)
-  def success(s: JavaFunction[T, Directive]) = compose(f, s)
+  def success(s: JavaFunction[T, Directive]) = compose(s)
 }
 
 
-final class Directive2[T1, T2] private[kappa] (name: String, f: KappaSession => (T1, T2)) extends Directive(name) {
-  def apply(s: (T1, T2) ⇒ Directive) = compose(f, s.tupled)
+final case class Directive2[T1, T2]
+    (override val name: String)(private val f: KappaSession => (T1, T2)) extends Directive(name, f) {
+  def apply(s: (T1, T2) ⇒ Directive) = compose(s.tupled)
   //def success(s: (T1, T2) ⇒ Directive) = compose(f, s.tupled)
-  def success(s: JavaFunction[(T1, T2), Directive]) = compose(f, s)
+  def success(s: JavaFunction[(T1, T2), Directive]) = compose(s)
 }
 
 
-final class Directive3[T1, T2, T3] private[kappa] (name: String, f: KappaSession => (T1, T2, T3)) extends Directive(name) {
-  def apply(s: (T1, T2, T3) ⇒ Directive) = compose(f, s.tupled)
+final case class Directive3[T1, T2, T3]
+    (override val name: String)(private val f: KappaSession => (T1, T2, T3)) extends Directive(name, f) {
+  def apply(s: (T1, T2, T3) ⇒ Directive) = compose(s.tupled)
   //def success(s: (T1, T2, T3) ⇒ Directive) = compose(f, s.tupled)
 }
 
 
-final class Directive4[T1, T2, T3, T4] private[kappa] (name: String, f: KappaSession => (T1, T2, T3, T4)) extends Directive(name) {
-  def apply(s: (T1, T2, T3, T4) ⇒ Directive) = compose(f, s.tupled)
+final case class Directive4[T1, T2, T3, T4]
+    (override val name: String)(private val f: KappaSession => (T1, T2, T3, T4)) extends Directive(name, f) {
+  def apply(s: (T1, T2, T3, T4) ⇒ Directive) = compose(s.tupled)
   //def success(s: (T1, T2, T3, T4) ⇒ Directive) = compose(f, s.tupled)
 }
 
 
-final class Directive5[T1, T2, T3, T4, T5] private[kappa] (name: String, f: KappaSession => (T1, T2, T3, T4, T5)) extends Directive(name) {
-  def apply(s: (T1, T2, T3, T4, T5) ⇒ Directive) = compose(f, s.tupled)
-  def success(s: (T1, T2, T3, T4, T5) ⇒ Directive) = compose(f, s.tupled)
+final class Directive5[T1, T2, T3, T4, T5] private[kappa]
+    (override val name: String)(private val f: KappaSession => (T1, T2, T3, T4, T5)) extends Directive(name, f) {
+  def apply(s: (T1, T2, T3, T4, T5) ⇒ Directive) = compose(s.tupled)
+  def success(s: (T1, T2, T3, T4, T5) ⇒ Directive) = compose(s.tupled)
 }
 
 

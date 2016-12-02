@@ -4,7 +4,6 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import kappa._
-import kappa.Directive._
 import org.apache.curator.framework.recipes.locks.InterProcessReadWriteLock
 
 import scala.concurrent.Future
@@ -112,7 +111,7 @@ private class Lock (session: KappaSession, basePath: String) extends WriteLock w
             session.debug(t, s"Error releasing write lock on $internalLockPath (Ignoring error)")
         }
       }
-    }.asInstanceOf[Directive1[WriteLock]]
+    }
 
   private[coordinator] def readLock() = Directive1[ReadLock]("readLock") { session =>
     acquireReadLock() match {
@@ -144,7 +143,8 @@ private class Lock (session: KappaSession, basePath: String) extends WriteLock w
 
   private def releaseWriteLock(): Try[Unit] = {
     Try {
-      internalLock.writeLock().release()
+      if (internalLock.writeLock().isAcquiredInThisProcess)
+        internalLock.writeLock().release()
     } match {
       case Success(_) ⇒ Success(())
       case Failure(error) ⇒ Failure {
@@ -168,7 +168,8 @@ private class Lock (session: KappaSession, basePath: String) extends WriteLock w
 
   private def releaseReadLock(): Try[Unit] = {
     Try {
-      internalLock.readLock().release()
+      if (internalLock.readLock().isAcquiredInThisProcess)
+        internalLock.readLock().release()
     } match {
       case Success(_) ⇒ Success(())
       case Failure(error) ⇒ Failure {

@@ -13,31 +13,7 @@ import org.apache.commons.httpclient.params.HttpClientParams
   * http://spark.apache.org/docs/latest/monitoring.html#rest-api
   *
   */
-class RestApiV1(host: String) {
-
-  private val httpClient = {
-    val params = new HttpClientParams()
-    new HttpClient(params)
-  }
-
-  private val mapper = {
-    val mapper = new ObjectMapper() with ScalaObjectMapper
-    mapper.registerModule(DefaultScalaModule)
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-    mapper
-  }
-
-  private def get(resource: String, params: (String, Any)*) = {
-    val url = s"$host/api/v1/$resource?${
-      params.map { case (k, v) =>
-        s"$k=$v"
-      }.mkString("&")
-    }"
-    val method = new GetMethod(url)
-    val responseCode = httpClient.executeMethod(method)
-    // FIXME response errors
-    method.getResponseBodyAsStream
-  }
+class WebUiApiV1(host: String) extends RestApi(s"$host/api/v1") {
 
   def getApplications(params: (String, Any)*) = {
     mapper.readValue[Seq[Application]](get("applications", params: _*))

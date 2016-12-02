@@ -1,16 +1,11 @@
 package kappa.spark
 
-import java.io.File
-
-import kappa.Directives._
 import kappa._
-import kappa.Directive._
-import kappa.spark.rest.v1.RestApiV1
-import org.apache.commons.lang.text.StrSubstitutor
+import kappa.spark.rest.v1._
 import org.apache.spark.deploy.Client
-import org.apache.spark.launcher.SparkLauncher
 
-import scala.collection.JavaConverters.{getClass => _, _}
+import scala.collection.JavaConverters.{getClass => _}
+import scala.util.Try
 
 /**
   * Created by j0rd1 on 8/11/16.
@@ -19,6 +14,45 @@ object Directives {
 
   import Conf._
 
+  def submitSparkJob(id: String, resource: String, conf: String) = Directive0(s"submitSparkJob($id)") { session =>
+    val client = session.getOrCreate(classOf[ClusterApiV1]) {
+      new ClusterApiV1("localhost:6066")
+    }
+    val response = client submit Submission(
+      "CreateSubmissionRequest",
+      Seq("args"),
+      resource,
+      "2.0.0",
+      Map.empty[String, String],
+      "main.Class",
+      Map.empty[String, String]
+    )
+    if (!response.success) {
+      throw new Exception("Error submitting spark job: " + response.message) // FIXME exception
+    }
+  }
+
+  def killSparkJob(id: String) = Directive0(s"killSparkJob($id)") { session =>
+    val client = session.getOrCreate(classOf[ClusterApiV1]) {
+      new ClusterApiV1("localhost:6066")
+    }
+    val response = client.kill(id)
+    if (!response.success) {
+      throw new Exception("Error killing spark job: " + response.message) // FIXME exception
+    }
+  }
+
+  def killSparkJobIfExists(id: String) = Directive0(s"killSparkJobIfExists($id)") { session =>
+    val client = session.getOrCreate(classOf[ClusterApiV1]) {
+      new ClusterApiV1("localhost:6066")
+    }
+    val response = client.kill(id)
+    if (!response.success && response.message != "JOB ALREADY EXISTS") { // FIXME JOB ALREADY EXISTS message
+      throw new Exception("Error killing spark job: " + response.message) // FIXME exception
+    }
+  }
+
+  /*
   def submitSparkJob(id: String, resource: String, conf: String) = Directive0(s"submitSparkJob($id)") { session =>
 
 
@@ -53,7 +87,6 @@ object Directives {
     ))
   }
 
-  /*
   private def COMMAND_getCommand(session: KappaSession, script: String, args: String*): String = {
     import scala.collection.JavaConverters._
     new StrSubstitutor(session.conf.asMap.asJava).replace { // FIXME args

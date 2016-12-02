@@ -8,7 +8,7 @@ import kappa.spark.rest.v1._
 object TestV1 {
 
   def main(args: Array[String]): Unit = {
-    val client = new RestApiV1("http://localhost:4040")
+    val client = new WebUiApiV1("http://localhost:4040")
 
     val apps: Seq[Application] = client.getApplications()
     apps.foreach(println)

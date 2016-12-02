@@ -1,0 +1,7 @@
+
+* RUN
+docker compose up
+
+* DELETE TOPIC
+docker exec -t kafka_1 //opt/kafka_2.11-0.10.1.0/bin/kafka-topics.sh --delete --zookeeper localhost:2181 --topic <topic>
+
